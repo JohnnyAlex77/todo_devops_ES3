@@ -1,5 +1,23 @@
 # ==========================================
-# 1. SECURITY GROUP (nombre único por ejecución)
+# 0. DATA SOURCE PARA AMI
+# ==========================================
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+}
+
+# ==========================================
+# 1. SECURITY GROUP
 # ==========================================
 resource "aws_security_group" "app_sg" {
   name        = "todo-app-sg-es3-${random_id.suffix.hex}"
@@ -30,7 +48,7 @@ resource "aws_security_group" "app_sg" {
 }
 
 # ==========================================
-# 2. IAM (Usar LabRole existente)
+# 2. IAM (LabRole)
 # ==========================================
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
@@ -42,10 +60,10 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 
 # ==========================================
-# 3. EC2 INSTANCE
+# 3. EC2 INSTANCE (con AMI dinámica)
 # ==========================================
 resource "aws_instance" "app_server" {
-  ami                  = "ami-0c55b159cbfafe1f0"
+  ami                  = data.aws_ami.amazon_linux_2.id
   instance_type        = var.instance_type
   security_groups      = [aws_security_group.app_sg.name]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
@@ -69,7 +87,6 @@ resource "aws_sns_topic" "alerts" {
   name = "todo-app-alerts-es3-${random_id.suffix.hex}"
 }
 
-# COMENTA este recurso si el secret ALERT_EMAIL está vacío
 resource "aws_sns_topic_subscription" "email_sub" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
@@ -95,7 +112,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
 }
 
 # ==========================================
-# 5. CLOUDWATCH LOG GROUP (nombre único)
+# 5. CLOUDWATCH LOG GROUP
 # ==========================================
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/aws/ec2/todo-app-es3-${random_id.suffix.hex}"
@@ -103,22 +120,15 @@ resource "aws_cloudwatch_log_group" "app_logs" {
 }
 
 # ==========================================
-# 6. CLOUDTRAIL (con Object Lock deshabilitado)
+# 6. CLOUDTRAIL
 # ==========================================
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
 resource "aws_s3_bucket" "cloudtrail_bucket" {
-  bucket             = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
-  force_destroy      = true
-  object_lock_enabled = false   # <-- Deshabilita explícitamente Object Lock
-
-  lifecycle {
-    ignore_changes = [
-      object_lock_configuration
-    ]
-  }
+  bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
