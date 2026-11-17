@@ -1,79 +1,86 @@
-name: CI/CD Pipeline
+name: CI/CD ES3 - Pruebas y Seguridad
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/todo-app
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  ci:
-    name: Integracion Continua
+  # ==========================================
+  # JOB 1: Pruebas de aplicación y seguridad (Criterio 5)
+  # ==========================================
+  test-and-security:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout del codigo
+      - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js 18
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
 
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Ejecutar pruebas unitarias (Jest)
+        run: npm test
+
       - name: Lint
         run: npm run lint
 
-      - name: Ejecutar pruebas
-        run: npm test
-        env:
-          NODE_ENV: test
-
-      - name: Construir imagen Docker
-        run: docker build -f docker/Dockerfile -t $IMAGE_NAME:${{ github.sha }} .
-
-      - name: Login en Docker Hub
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        uses: docker/login-action@v3
+      # ---- Prueba de Seguridad: Escaneo de IaC con Checkov ----
+      - name: Escaneo de seguridad Terraform (Checkov)
+        uses: bridgecrewio/checkov-action@master
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          directory: infra/
+          framework: terraform
+          output_format: cli
+          soft_fail: false  # Falla el pipeline si hay hallazgos críticos
 
-      - name: Publicar imagen con tag de version
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          docker tag $IMAGE_NAME:${{ github.sha }} $IMAGE_NAME:$TAG
-          docker tag $IMAGE_NAME:${{ github.sha }} $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:$TAG
-          docker push $IMAGE_NAME:latest
+      # ---- Validación de Terraform ----
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-  cd:
-    name: Entrega Continua
-    needs: ci
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: infra/
+
+  # ==========================================
+  # JOB 2: Deploy (solo si las pruebas pasan)
+  # ==========================================
+  deploy:
+    needs: test-and-security
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: Checkout del codigo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Desplegar en EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /home/ubuntu/todo-devops
-            export DOCKER_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/todo-app:${{ github.ref_name }}
-            export APP_VERSION=${{ github.ref_name }}
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-            docker compose -f docker/docker-compose.yml pull
-            docker compose -f docker/docker-compose.yml up -d
-            docker image prune -f
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infra/
+
+      - name: Terraform Plan
+        run: terraform plan -var="alert_email=${{ secrets.ALERT_EMAIL }}"
+        working-directory: infra/
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="alert_email=${{ secrets.ALERT_EMAIL }}"
+        working-directory: infra/
