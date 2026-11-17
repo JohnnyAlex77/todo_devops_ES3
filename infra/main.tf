@@ -16,7 +16,7 @@ resource "aws_security_group" "app_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"]   # <-- Usa la variable
+    cidr_blocks = ["${var.my_ip}/32"] 
   }
 
   egress {
@@ -168,7 +168,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_lifecycle" {
   rule {
     id     = "expire-logs"
     status = "Enabled"
-    filter {}          # <-- Corregido: bloque filter vacío
+    filter {}        
     expiration {
       days = 30
     }
