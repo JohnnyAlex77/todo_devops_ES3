@@ -130,6 +130,13 @@ resource "random_id" "suffix" {
 resource "aws_s3_bucket" "cloudtrail_bucket" {
   bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
   force_destroy = true
+
+  # Ignora la lectura de Object Lock bloqueada por el Learner Lab
+  lifecycle {
+    ignore_changes = [
+      object_lock_configuration
+    ]
+  }
 }
 
 resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
