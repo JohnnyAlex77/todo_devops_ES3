@@ -13,9 +13,9 @@ Implementa un flujo DevOps completo: Git, CI/CD, contenedores Docker, Infraestru
 - AWS CloudTrail (trazabilidad manual)
 - Checkov (escaneo de seguridad IaC)
 
-## Estructura del proyecto
+# Estructura del proyecto
 
-```text
+```text0
 /
 ├── app/                  # Código fuente
 ├── tests/                # Pruebas automatizadas (Jest)
