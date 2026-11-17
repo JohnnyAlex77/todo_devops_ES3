@@ -16,7 +16,7 @@ resource "aws_security_group" "app_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["32.198.77.45/32"]  # <-- CAMBIA ESTO
+    cidr_blocks = ["${var.my_ip}/32"]   # <-- Usa la variable
   }
 
   egress {
@@ -64,7 +64,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 # 3. EC2 INSTANCE
 # ==========================================
 resource "aws_instance" "app_server" {
-  ami                  = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 us-west-2
+  ami                  = "ami-0c55b159cbfafe1f0"
   instance_type        = var.instance_type
   security_groups      = [aws_security_group.app_sg.name]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
@@ -123,7 +123,7 @@ resource "aws_kms_key" "logs_key" {
 
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/aws/ec2/todo-app-es3"
-  retention_in_days = 365   # Checkov exige al menos 1 año (CKV_AWS_338)
+  retention_in_days = 365
   kms_key_id        = aws_kms_key.logs_key.arn
 }
 
@@ -139,7 +139,6 @@ resource "aws_s3_bucket" "cloudtrail_bucket" {
   force_destroy = true
 }
 
-# Versioning (CKV_AWS_21)
 resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
   bucket = aws_s3_bucket.cloudtrail_bucket.id
   versioning_configuration {
@@ -147,7 +146,6 @@ resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
   }
 }
 
-# Cifrado (CKV_AWS_145)
 resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail_encryption" {
   bucket = aws_s3_bucket.cloudtrail_bucket.id
   rule {
@@ -157,7 +155,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail_encryp
   }
 }
 
-# Public Access Block (CKV2_AWS_6)
 resource "aws_s3_bucket_public_access_block" "cloudtrail_public_access_block" {
   bucket                  = aws_s3_bucket.cloudtrail_bucket.id
   block_public_acls       = true
@@ -166,24 +163,23 @@ resource "aws_s3_bucket_public_access_block" "cloudtrail_public_access_block" {
   restrict_public_buckets = true
 }
 
-# Lifecycle (CKV2_AWS_61)
 resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_lifecycle" {
   bucket = aws_s3_bucket.cloudtrail_bucket.id
   rule {
     id     = "expire-logs"
     status = "Enabled"
+    filter {}          # <-- Corregido: bloque filter vacío
     expiration {
       days = 30
     }
   }
 }
 
-# CloudTrail multi-región (CKV_AWS_67)
 resource "aws_cloudtrail" "trail" {
   name                          = "todo-app-trail-es3"
   s3_bucket_name                = aws_s3_bucket.cloudtrail_bucket.id
   include_global_service_events = true
-  is_multi_region_trail         = true   # <-- Corregido
+  is_multi_region_trail         = true
   enable_logging                = true
 
   depends_on = [

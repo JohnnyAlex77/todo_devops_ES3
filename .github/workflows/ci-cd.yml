@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ==========================================
+  # JOB 1: Pruebas de aplicación y seguridad
+  # ==========================================
   test-and-security:
     runs-on: ubuntu-latest
     steps:
@@ -28,15 +31,17 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # ---- Escaneo de seguridad de infraestructura ----
       - name: Escaneo de seguridad Terraform (Checkov)
         uses: bridgecrewio/checkov-action@master
         with:
           directory: infra/
           framework: terraform
           output_format: cli
-          soft_fail: true   
+          soft_fail: true   # No detiene el pipeline si hay hallazgos
           compact: true
 
+      # ---- Validación de Terraform ----
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -48,6 +53,9 @@ jobs:
         run: terraform validate
         working-directory: infra/
 
+  # ==========================================
+  # JOB 2: Deploy (solo si las pruebas pasan y es push a main)
+  # ==========================================
   deploy:
     needs: test-and-security
     runs-on: ubuntu-latest
@@ -72,9 +80,9 @@ jobs:
         working-directory: infra/
 
       - name: Terraform Plan
-        run: terraform plan -var="alert_email=${{ secrets.ALERT_EMAIL }}"
+        run: terraform plan -var="alert_email=${{ secrets.ALERT_EMAIL }}" -var="my_ip=${{ secrets.MY_IP }}"
         working-directory: infra/
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="alert_email=${{ secrets.ALERT_EMAIL }}"
+        run: terraform apply -auto-approve -var="alert_email=${{ secrets.ALERT_EMAIL }}" -var="my_ip=${{ secrets.MY_IP }}"
         working-directory: infra/

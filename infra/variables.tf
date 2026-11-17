@@ -15,3 +15,8 @@ variable "key_name" {
   description = "Nombre del Key Pair para SSH (opcional)"
   default     = ""
 }
+
+variable "my_ip" {
+  description = "IP pública del desarrollador para restringir SSH"
+  type        = string
+}
