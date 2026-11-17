@@ -19,4 +19,5 @@ variable "key_name" {
 variable "my_ip" {
   description = "IP pública del desarrollador para restringir SSH"
   type        = string
+  default     = "0.0.0.0"
 }

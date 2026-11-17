@@ -1,5 +1,5 @@
 # ==========================================
-# 1. SECURITY GROUP (Criterio 10: Restricción de accesos)
+# 1. SECURITY GROUP
 # ==========================================
 resource "aws_security_group" "app_sg" {
   name        = "todo-app-sg-es3"
@@ -16,7 +16,7 @@ resource "aws_security_group" "app_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${var.my_ip}/32"] 
+    cidr_blocks = ["${var.my_ip}/32"]
   }
 
   egress {
@@ -30,7 +30,7 @@ resource "aws_security_group" "app_sg" {
 }
 
 # ==========================================
-# 2. IAM ROLE (Criterio 8: Mínimo privilegio)
+# 2. IAM ROLE (mínimo privilegio)
 # ==========================================
 resource "aws_iam_role" "ec2_cloudwatch_role" {
   name = "ec2-cloudwatch-role-es3"
@@ -82,7 +82,7 @@ resource "aws_instance" "app_server" {
 }
 
 # ==========================================
-# 4. SNS + CLOUDWATCH ALARM (Criterio 2)
+# 4. SNS + ALARMA (sin KMS)
 # ==========================================
 resource "aws_sns_topic" "alerts" {
   name = "todo-app-alerts-es3"
@@ -113,22 +113,15 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
 }
 
 # ==========================================
-# 5. CLOUDWATCH LOG GROUP (Criterio 1) - con KMS
+# 5. CLOUDWATCH LOG GROUP (sin KMS)
 # ==========================================
-resource "aws_kms_key" "logs_key" {
-  description             = "KMS key para logs ES3"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-}
-
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/aws/ec2/todo-app-es3"
-  retention_in_days = 365
-  kms_key_id        = aws_kms_key.logs_key.arn
+  retention_in_days = 7
 }
 
 # ==========================================
-# 6. CLOUDTRAIL (Criterio 3) - multi-región + S3 seguro
+# 6. CLOUDTRAIL (sin configuraciones avanzadas de S3)
 # ==========================================
 resource "random_id" "suffix" {
   byte_length = 4
@@ -146,33 +139,12 @@ resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail_encryption" {
-  bucket = aws_s3_bucket.cloudtrail_bucket.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
 resource "aws_s3_bucket_public_access_block" "cloudtrail_public_access_block" {
   bucket                  = aws_s3_bucket.cloudtrail_bucket.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_lifecycle" {
-  bucket = aws_s3_bucket.cloudtrail_bucket.id
-  rule {
-    id     = "expire-logs"
-    status = "Enabled"
-    filter {}        
-    expiration {
-      days = 30
-    }
-  }
 }
 
 resource "aws_cloudtrail" "trail" {
@@ -184,7 +156,6 @@ resource "aws_cloudtrail" "trail" {
 
   depends_on = [
     aws_s3_bucket_versioning.cloudtrail_versioning,
-    aws_s3_bucket_server_side_encryption_configuration.cloudtrail_encryption,
     aws_s3_bucket_public_access_block.cloudtrail_public_access_block
   ]
 }
