@@ -1,5 +1,5 @@
 # ==========================================
-# 0. DATA SOURCE PARA AMI
+# 0. DATA SOURCE PARA AMI (Amazon Linux 2)
 # ==========================================
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
@@ -48,7 +48,7 @@ resource "aws_security_group" "app_sg" {
 }
 
 # ==========================================
-# 2. IAM (LabRole)
+# 2. IAM (Usar LabRole existente)
 # ==========================================
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
@@ -60,7 +60,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 
 # ==========================================
-# 3. EC2 INSTANCE (con AMI dinámica)
+# 3. EC2 INSTANCE
 # ==========================================
 resource "aws_instance" "app_server" {
   ami                  = data.aws_ami.amazon_linux_2.id
@@ -81,7 +81,7 @@ resource "aws_instance" "app_server" {
 }
 
 # ==========================================
-# 4. SNS + ALARMA
+# 4. SNS + CLOUDWATCH ALARM
 # ==========================================
 resource "aws_sns_topic" "alerts" {
   name = "todo-app-alerts-es3-${random_id.suffix.hex}"
@@ -120,47 +120,8 @@ resource "aws_cloudwatch_log_group" "app_logs" {
 }
 
 # ==========================================
-# 6. CLOUDTRAIL
+# 6. RANDOM ID
 # ==========================================
 resource "random_id" "suffix" {
   byte_length = 4
-}
-
-resource "aws_s3_bucket" "cloudtrail_bucket" {
-  bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
-  force_destroy = true
-
-  lifecycle {
-    ignore_changes = [
-      object_lock_configuration[0].rule
-    ]
-  }
-}
-
-resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {
-  bucket = aws_s3_bucket.cloudtrail_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "cloudtrail_public_access_block" {
-  bucket                  = aws_s3_bucket.cloudtrail_bucket.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_cloudtrail" "trail" {
-  name                          = "todo-app-trail-es3-${random_id.suffix.hex}"
-  s3_bucket_name                = aws_s3_bucket.cloudtrail_bucket.id
-  include_global_service_events = true
-  is_multi_region_trail         = true
-  enable_logging                = true
-
-  depends_on = [
-    aws_s3_bucket_versioning.cloudtrail_versioning,
-    aws_s3_bucket_public_access_block.cloudtrail_public_access_block
-  ]
 }
