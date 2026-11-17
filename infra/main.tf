@@ -1,5 +1,5 @@
 # ==========================================
-# 1. SECURITY GROUP
+# 1. SECURITY GROUP (Criterio 10: Restricción de accesos)
 # ==========================================
 resource "aws_security_group" "app_sg" {
   name        = "todo-app-sg-es3"
@@ -30,41 +30,22 @@ resource "aws_security_group" "app_sg" {
 }
 
 # ==========================================
-# 2. IAM ROLE (mínimo privilegio)
+# 2. IAM (Usar LabRole existente del Learner Lab)
 # ==========================================
-resource "aws_iam_role" "ec2_cloudwatch_role" {
-  name = "ec2-cloudwatch-role-es3"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "cloudwatch_attach" {
-  role       = aws_iam_role.ec2_cloudwatch_role.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_attach" {
-  role       = aws_iam_role.ec2_cloudwatch_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "ec2-profile-es3"
-  role = aws_iam_role.ec2_cloudwatch_role.name
+  role = data.aws_iam_role.lab_role.name
 }
 
 # ==========================================
 # 3. EC2 INSTANCE
 # ==========================================
 resource "aws_instance" "app_server" {
-  ami                  = "ami-0c55b159cbfafe1f0"
+  ami                  = "ami-0c55b159cbfafe1f0"   # Amazon Linux 2 us-west-2
   instance_type        = var.instance_type
   security_groups      = [aws_security_group.app_sg.name]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
@@ -82,7 +63,7 @@ resource "aws_instance" "app_server" {
 }
 
 # ==========================================
-# 4. SNS + ALARMA (sin KMS)
+# 4. SNS + CLOUDWATCH ALARM (Criterio 2)
 # ==========================================
 resource "aws_sns_topic" "alerts" {
   name = "todo-app-alerts-es3"
@@ -113,7 +94,7 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
 }
 
 # ==========================================
-# 5. CLOUDWATCH LOG GROUP (sin KMS)
+# 5. CLOUDWATCH LOG GROUP (Criterio 1) - sin KMS
 # ==========================================
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/aws/ec2/todo-app-es3"
@@ -121,7 +102,7 @@ resource "aws_cloudwatch_log_group" "app_logs" {
 }
 
 # ==========================================
-# 6. CLOUDTRAIL (sin configuraciones avanzadas de S3)
+# 6. CLOUDTRAIL (Criterio 3) - multi-región + S3 seguro
 # ==========================================
 resource "random_id" "suffix" {
   byte_length = 4
@@ -131,7 +112,7 @@ resource "aws_s3_bucket" "cloudtrail_bucket" {
   bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
   force_destroy = true
 
-  # Ignora la lectura de Object Lock bloqueada por el Learner Lab
+  # Ignora Object Lock bloqueado por el Learner Lab
   lifecycle {
     ignore_changes = [
       object_lock_configuration
