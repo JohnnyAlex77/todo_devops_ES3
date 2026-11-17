@@ -1,8 +1,8 @@
 # ==========================================
-# 1. SECURITY GROUP (Criterio 10: Restricción de accesos)
+# 1. SECURITY GROUP (nombre único por ejecución)
 # ==========================================
 resource "aws_security_group" "app_sg" {
-  name        = "todo-app-sg-es3"
+  name        = "todo-app-sg-es3-${random_id.suffix.hex}"
   description = "Security Group restringido para app ES3"
 
   ingress {
@@ -30,14 +30,14 @@ resource "aws_security_group" "app_sg" {
 }
 
 # ==========================================
-# 2. IAM (Usar LabRole existente del Learner Lab)
+# 2. IAM (Usar LabRole existente)
 # ==========================================
 data "aws_iam_role" "lab_role" {
   name = "LabRole"
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "ec2-profile-es3"
+  name = "ec2-profile-es3-${random_id.suffix.hex}"
   role = data.aws_iam_role.lab_role.name
 }
 
@@ -45,7 +45,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 # 3. EC2 INSTANCE
 # ==========================================
 resource "aws_instance" "app_server" {
-  ami                  = "ami-0c55b159cbfafe1f0"   # Amazon Linux 2 us-west-2
+  ami                  = "ami-0c55b159cbfafe1f0"
   instance_type        = var.instance_type
   security_groups      = [aws_security_group.app_sg.name]
   iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
@@ -63,12 +63,13 @@ resource "aws_instance" "app_server" {
 }
 
 # ==========================================
-# 4. SNS + CLOUDWATCH ALARM (Criterio 2)
+# 4. SNS + ALARMA
 # ==========================================
 resource "aws_sns_topic" "alerts" {
-  name = "todo-app-alerts-es3"
+  name = "todo-app-alerts-es3-${random_id.suffix.hex}"
 }
 
+# COMENTA este recurso si el secret ALERT_EMAIL está vacío
 resource "aws_sns_topic_subscription" "email_sub" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
@@ -76,7 +77,7 @@ resource "aws_sns_topic_subscription" "email_sub" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {
-  alarm_name          = "todo-app-cpu-alta-es3"
+  alarm_name          = "todo-app-cpu-alta-es3-${random_id.suffix.hex}"
   alarm_description   = "CPU de la instancia supera el 70% por 2 periodos"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
@@ -94,25 +95,25 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
 }
 
 # ==========================================
-# 5. CLOUDWATCH LOG GROUP (Criterio 1) - sin KMS
+# 5. CLOUDWATCH LOG GROUP (nombre único)
 # ==========================================
 resource "aws_cloudwatch_log_group" "app_logs" {
-  name              = "/aws/ec2/todo-app-es3"
+  name              = "/aws/ec2/todo-app-es3-${random_id.suffix.hex}"
   retention_in_days = 7
 }
 
 # ==========================================
-# 6. CLOUDTRAIL (Criterio 3) - multi-región + S3 seguro
+# 6. CLOUDTRAIL (con Object Lock deshabilitado)
 # ==========================================
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
 resource "aws_s3_bucket" "cloudtrail_bucket" {
-  bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
-  force_destroy = true
+  bucket             = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
+  force_destroy      = true
+  object_lock_enabled = false   # <-- Deshabilita explícitamente Object Lock
 
-  # Ignora Object Lock bloqueado por el Learner Lab
   lifecycle {
     ignore_changes = [
       object_lock_configuration
@@ -136,7 +137,7 @@ resource "aws_s3_bucket_public_access_block" "cloudtrail_public_access_block" {
 }
 
 resource "aws_cloudtrail" "trail" {
-  name                          = "todo-app-trail-es3"
+  name                          = "todo-app-trail-es3-${random_id.suffix.hex}"
   s3_bucket_name                = aws_s3_bucket.cloudtrail_bucket.id
   include_global_service_events = true
   is_multi_region_trail         = true
