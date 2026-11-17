@@ -16,7 +16,7 @@ resource "aws_security_group" "app_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["TU_IP_PUBLICA/32"]  # <-- CAMBIA ESTO
+    cidr_blocks = ["32.198.77.45/32"]  # <-- CAMBIA ESTO
   }
 
   egress {
