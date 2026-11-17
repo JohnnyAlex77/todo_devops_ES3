@@ -129,6 +129,12 @@ resource "random_id" "suffix" {
 resource "aws_s3_bucket" "cloudtrail_bucket" {
   bucket        = "todo-cloudtrail-logs-es3-${random_id.suffix.hex}"
   force_destroy = true
+
+  lifecycle {
+    ignore_changes = [
+      object_lock_configuration[0].rule
+    ]
+  }
 }
 
 resource "aws_s3_bucket_versioning" "cloudtrail_versioning" {

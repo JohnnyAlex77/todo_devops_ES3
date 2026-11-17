@@ -9,5 +9,4 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-  s3_use_object_lock = false
 }
