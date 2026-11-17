@@ -19,7 +19,7 @@ Implementa un flujo DevOps completo: Git, CI/CD, contenedores Docker e Infraestr
 ├── tests/                # Pruebas automatizadas
 ├── .github/workflows/    # Pipeline CI/CD
 ├── docker/               # Dockerfile y docker-compose
-├── infra/                # Terraform (IaC)
+├── infra/                # Terraform(IaC)
 └── README.md
 \`\`\`
 
